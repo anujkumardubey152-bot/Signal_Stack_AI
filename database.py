@@ -9,7 +9,9 @@ import tempfile
 DB_PATH = "/tmp/signal_stack_ai.db"
 
 def get_connection():
-    return sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 def initialize_database():
 
