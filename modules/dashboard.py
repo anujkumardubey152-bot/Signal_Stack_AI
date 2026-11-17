@@ -18,20 +18,16 @@ from modules.internal_analyzer import analyze_internal
 from modules.executive_summary import generate_executive_summary
 
 
-st.set_page_config(
-    page_title="Signal Stack AI",
-    page_icon="📊",
-    layout="wide"
-)
-
+# ==========================================
+# ANALYSIS DISPLAY
+# ==========================================
 
 def show_analysis(title, function, signals):
-    """Safely display an intelligence analysis section."""
 
     st.subheader(title)
 
     if not signals:
-        st.info("Add signals to generate this analysis.")
+        st.info("Add intelligence signals to generate this analysis.")
         return
 
     try:
@@ -41,34 +37,59 @@ def show_analysis(title, function, signals):
             st.info("No analysis available yet.")
 
         elif isinstance(result, pd.DataFrame):
-            if not result.empty:
-                st.dataframe(result, use_container_width=True)
+
+            if result.empty:
+                st.info("No analysis data available.")
             else:
-                st.info("No data available.")
+                st.dataframe(
+                    result,
+                    use_container_width=True,
+                    hide_index=True
+                )
 
         elif isinstance(result, dict):
-            for key, value in result.items():
-                st.write(f"**{str(key).replace('_', ' ').title()}**")
-                if isinstance(value, (dict, list)):
-                    st.write(value)
-                else:
-                    st.write(value)
+
+            if not result:
+                st.info("No analysis results available.")
+            else:
+                for key, value in result.items():
+
+                    st.markdown(
+                        f"**{str(key).replace('_', ' ').title()}**"
+                    )
+
+                    if isinstance(value, (dict, list)):
+                        st.write(value)
+                    else:
+                        st.write(value)
 
         elif isinstance(result, list):
-            if result:
+
+            if not result:
+                st.info("No results available.")
+            else:
                 for item in result:
                     st.write(item)
-            else:
-                st.info("No results available.")
 
         else:
             st.write(result)
 
     except Exception as error:
-        st.warning(f"Analysis could not be generated: {error}")
 
+        st.warning(
+            f"Unable to generate {title}: {error}"
+        )
+
+
+# ==========================================
+# MAIN DASHBOARD
+# ==========================================
 
 def render_dashboard():
+
+    # ======================================
+    # HEADER
+    # ======================================
 
     st.title("📊 Signal Stack AI")
 
@@ -76,38 +97,48 @@ def render_dashboard():
         "Intelligent Business Signal Monitoring and Analysis"
     )
 
-    # ==========================================
-    # ADD SIGNAL
-    # ==========================================
+    st.markdown(
+        "Monitor business signals, discover opportunities, "
+        "track competitors, and generate actionable intelligence."
+    )
 
-    st.sidebar.header("➕ Add Intelligence Signal")
+    # ======================================
+    # ADD SIGNAL FORM
+    # ======================================
+
+    st.sidebar.title("⚙️ Signal Management")
+
+    st.sidebar.subheader("➕ Add Intelligence Signal")
 
     with st.sidebar.form("add_signal_form"):
 
         title = st.text_input(
             "Signal Title",
-            placeholder="Example: Competitor launches a new AI product"
+            placeholder="Enter signal title"
         )
 
         content = st.text_area(
             "Signal Description",
-            placeholder="Describe the business intelligence signal..."
+            placeholder="Describe the intelligence signal..."
         )
 
         source = st.text_input(
-            "Source",
-            placeholder="Example: News, Website, Report"
+            "Signal Source",
+            placeholder="News, Website, Report, etc."
         )
 
         submitted = st.form_submit_button(
-            "Process and Save Signal",
+            "🚀 Process and Save Signal",
             use_container_width=True
         )
 
         if submitted:
 
             if not title.strip() or not content.strip():
-                st.error("Please enter both a title and description.")
+
+                st.sidebar.error(
+                    "Please enter both title and description."
+                )
 
             else:
 
@@ -118,115 +149,143 @@ def render_dashboard():
                 }
 
                 try:
+
                     result = process_signal(signal)
 
                     if result.get("status") == "Saved":
+
                         st.sidebar.success(
                             "Signal successfully processed and saved!"
                         )
+
                         st.rerun()
 
                     else:
+
                         st.sidebar.warning(
-                            "This signal already exists in the database."
+                            "Duplicate signal detected. "
+                            "This signal already exists."
                         )
 
                 except Exception as error:
+
                     st.sidebar.error(
-                        f"Could not process signal: {error}"
+                        f"Signal processing failed: {error}"
                     )
 
-    # ==========================================
-    # RETRIEVE SIGNALS
-    # ==========================================
+    # ======================================
+    # DATABASE RETRIEVAL
+    # ======================================
 
     try:
+
         raw_signals = get_prioritized_signals()
-        signals = [dict(signal) for signal in raw_signals]
+
+        signals = [
+            dict(signal)
+            for signal in raw_signals
+        ]
 
     except Exception as error:
-        st.error(f"Unable to retrieve signals: {error}")
+
+        st.error(
+            f"Database retrieval failed: {error}"
+        )
+
         signals = []
 
     st.divider()
 
-    # ==========================================
-    # OVERVIEW
-    # ==========================================
+    # ======================================
+    # DATA PREPARATION
+    # ======================================
+
+    df = pd.DataFrame(signals)
+
+    required_columns = {
+        "title": "",
+        "content": "",
+        "source": "",
+        "category": "Unclassified",
+        "priority_score": 0,
+        "relevance_score": 0
+    }
+
+    for column, default in required_columns.items():
+
+        if column not in df.columns:
+            df[column] = default
+
+    df["priority_score"] = pd.to_numeric(
+        df["priority_score"],
+        errors="coerce"
+    ).fillna(0)
+
+    df["relevance_score"] = pd.to_numeric(
+        df["relevance_score"],
+        errors="coerce"
+    ).fillna(0)
+
+    # ======================================
+    # OVERVIEW METRICS
+    # ======================================
 
     st.header("📈 Intelligence Overview")
 
-    total_signals = len(signals)
+    total_signals = len(df)
 
-    if signals:
-        df = pd.DataFrame(signals)
+    high_priority = len(
+        df[df["priority_score"] >= 70]
+    )
 
-        if "category" not in df.columns:
-            df["category"] = "Unclassified"
+    average_relevance = (
+        df["relevance_score"].mean()
+        if total_signals else 0
+    )
 
-        if "priority_score" not in df.columns:
-            df["priority_score"] = 0
-
-        if "relevance_score" not in df.columns:
-            df["relevance_score"] = 0
-
-        df["priority_score"] = pd.to_numeric(
-            df["priority_score"], errors="coerce"
-        ).fillna(0)
-
-        df["relevance_score"] = pd.to_numeric(
-            df["relevance_score"], errors="coerce"
-        ).fillna(0)
-
-        high_priority = len(
-            df[df["priority_score"] >= 70]
-        )
-
-        average_relevance = df["relevance_score"].mean()
-
-        categories_count = df["category"].nunique()
-
-    else:
-        df = pd.DataFrame(
-            columns=[
-                "title",
-                "content",
-                "source",
-                "category",
-                "priority_score",
-                "relevance_score"
-            ]
-        )
-
-        high_priority = 0
-        average_relevance = 0
-        categories_count = 0
+    categories_count = (
+        df["category"].nunique()
+        if total_signals else 0
+    )
 
     col1, col2, col3, col4 = st.columns(4)
 
-    col1.metric("Total Signals", total_signals)
+    col1.metric(
+        "Total Signals",
+        total_signals
+    )
 
-    col2.metric("High Priority Signals", high_priority)
+    col2.metric(
+        "High Priority",
+        high_priority
+    )
 
     col3.metric(
         "Average Relevance",
         f"{average_relevance:.1f}"
     )
 
-    col4.metric("Intelligence Categories", categories_count)
+    col4.metric(
+        "Categories",
+        categories_count
+    )
 
     st.divider()
 
-    # ==========================================
-    # FILTERS
-    # ==========================================
+    # ======================================
+    # SIGNAL EXPLORER
+    # ======================================
 
     st.header("🔎 Signal Explorer")
 
-    if signals:
+    if total_signals:
 
         category_options = ["All"] + sorted(
-            df["category"].dropna().astype(str).unique().tolist()
+            df["category"]
+            .fillna("Unclassified")
+            .astype(str)
+            .unique()
+            .tolist()
         )
 
         selected_category = st.selectbox(
@@ -236,12 +295,13 @@ def render_dashboard():
 
         search_text = st.text_input(
             "Search Signals",
-            placeholder="Search title, content or source..."
+            placeholder="Search title, description or source..."
         )
 
         filtered = df.copy()
 
         if selected_category != "All":
+
             filtered = filtered[
                 filtered["category"] == selected_category
             ]
@@ -249,20 +309,45 @@ def render_dashboard():
         if search_text.strip():
 
             search_mask = (
-                filtered["title"].fillna("").astype(str).str.contains(
-                    search_text, case=False, na=False
+
+                filtered["title"]
+                .fillna("")
+                .astype(str)
+                .str.contains(
+                    search_text,
+                    case=False,
+                    na=False
                 )
+
                 |
-                filtered["content"].fillna("").astype(str).str.contains(
-                    search_text, case=False, na=False
+
+                filtered["content"]
+                .fillna("")
+                .astype(str)
+                .str.contains(
+                    search_text,
+                    case=False,
+                    na=False
                 )
+
                 |
-                filtered["source"].fillna("").astype(str).str.contains(
-                    search_text, case=False, na=False
+
+                filtered["source"]
+                .fillna("")
+                .astype(str)
+                .str.contains(
+                    search_text,
+                    case=False,
+                    na=False
                 )
+
             )
 
             filtered = filtered[search_mask]
+
+        st.write(
+            f"Showing {len(filtered)} of {total_signals} signals"
+        )
 
         st.dataframe(
             filtered,
@@ -271,20 +356,21 @@ def render_dashboard():
         )
 
     else:
+
         st.info(
-            "No signals available yet. Use the Add Intelligence Signal "
-            "form in the sidebar to begin."
+            "No signals available yet. "
+            "Use the Add Intelligence Signal form in the sidebar."
         )
 
     st.divider()
 
-    # ==========================================
+    # ======================================
     # PRIORITY INTELLIGENCE
-    # ==========================================
+    # ======================================
 
     st.header("🚨 Priority Intelligence")
 
-    if signals:
+    if total_signals:
 
         priority_df = df.sort_values(
             "priority_score",
@@ -298,21 +384,25 @@ def render_dashboard():
         )
 
     else:
-        st.info("Priority intelligence will appear after adding signals.")
+
+        st.info(
+            "Priority intelligence will appear after adding signals."
+        )
 
     st.divider()
 
-    # ==========================================
+    # ======================================
     # SIGNAL DISTRIBUTION
-    # ==========================================
+    # ======================================
 
     st.header("📊 Signal Distribution")
 
-    if signals:
+    if total_signals:
 
         col1, col2 = st.columns(2)
 
         with col1:
+
             category_data = (
                 df["category"]
                 .fillna("Unclassified")
@@ -320,7 +410,10 @@ def render_dashboard():
                 .reset_index()
             )
 
-            category_data.columns = ["Category", "Count"]
+            category_data.columns = [
+                "Category",
+                "Count"
+            ]
 
             fig = px.pie(
                 category_data,
@@ -330,31 +423,49 @@ def render_dashboard():
                 hole=0.4
             )
 
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(
+                fig,
+                use_container_width=True
+            )
 
         with col2:
-            fig = px.bar(
+
+            chart_df = (
                 df.sort_values(
                     "priority_score",
                     ascending=False
-                ).head(10),
-                x="title",
-                y="priority_score",
-                title="Top 10 Signal Priority Scores"
+                )
+                .head(10)
             )
 
-            fig.update_layout(xaxis_title="Signal")
+            fig = px.bar(
+                chart_df,
+                x="title",
+                y="priority_score",
+                title="Top 10 Priority Signals"
+            )
 
-            st.plotly_chart(fig, use_container_width=True)
+            fig.update_layout(
+                xaxis_title="Signal",
+                yaxis_title="Priority Score"
+            )
+
+            st.plotly_chart(
+                fig,
+                use_container_width=True
+            )
 
     else:
-        st.info("Charts will appear when signals are available.")
+
+        st.info(
+            "Charts will be generated when signals are available."
+        )
 
     st.divider()
 
-    # ==========================================
+    # ======================================
     # TREND INTELLIGENCE
-    # ==========================================
+    # ======================================
 
     show_analysis(
         "📈 Trend Intelligence",
@@ -364,9 +475,9 @@ def render_dashboard():
 
     st.divider()
 
-    # ==========================================
+    # ======================================
     # COMPETITOR INTELLIGENCE
-    # ==========================================
+    # ======================================
 
     show_analysis(
         "🏢 Competitor Intelligence",
@@ -376,9 +487,9 @@ def render_dashboard():
 
     st.divider()
 
-    # ==========================================
+    # ======================================
     # CUSTOMER INTELLIGENCE
-    # ==========================================
+    # ======================================
 
     show_analysis(
         "👥 Customer Intelligence",
@@ -388,9 +499,9 @@ def render_dashboard():
 
     st.divider()
 
-    # ==========================================
+    # ======================================
     # MARKET INTELLIGENCE
-    # ==========================================
+    # ======================================
 
     show_analysis(
         "🌍 Market Intelligence",
@@ -400,9 +511,9 @@ def render_dashboard():
 
     st.divider()
 
-    # ==========================================
+    # ======================================
     # INTERNAL INTELLIGENCE
-    # ==========================================
+    # ======================================
 
     show_analysis(
         "🏭 Internal Intelligence",
@@ -412,9 +523,9 @@ def render_dashboard():
 
     st.divider()
 
-    # ==========================================
+    # ======================================
     # EXECUTIVE SUMMARY
-    # ==========================================
+    # ======================================
 
     show_analysis(
         "🧠 Executive Intelligence Summary",
@@ -424,9 +535,10 @@ def render_dashboard():
 
     st.divider()
 
+    # ======================================
+    # FOOTER
+    # ======================================
+
     st.caption(
         "Signal Stack AI | Intelligent Business Signal Monitoring"
     )
-
-
-render_dashboard()
