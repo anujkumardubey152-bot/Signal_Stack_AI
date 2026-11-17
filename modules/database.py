@@ -1,39 +1,52 @@
 
+"""
+Signal Stack AI
+Database management module.
+"""
+
 import sqlite3
-import os
 import hashlib
 
-DB_PATH = "/content/drive/MyDrive/Signal_Stack_AI/signals.db"
+# Streamlit Cloud writable database location
+DB_PATH = "/tmp/signal_stack_ai.db"
 
 
 def get_connection():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    return sqlite3.connect(DB_PATH)
+    """Connect to the SQLite database."""
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 def initialize_database():
+    """Create the signals table."""
 
     conn = get_connection()
-    cursor = conn.cursor()
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS signals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            content TEXT,
-            source TEXT,
-            category TEXT,
-            relevance_score INTEGER,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            signal_hash TEXT UNIQUE
-        )
-    """)
+    try:
+        cursor = conn.cursor()
 
-    conn.commit()
-    conn.close()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS signals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT,
+                content TEXT,
+                source TEXT,
+                category TEXT,
+                relevance_score INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                signal_hash TEXT UNIQUE
+            )
+        """)
+
+        conn.commit()
+
+    finally:
+        conn.close()
 
 
 def generate_signal_hash(signal):
+    """Generate a unique hash for duplicate detection."""
 
     text = (
         str(signal.get("title", "")) + " " +
@@ -46,18 +59,23 @@ def generate_signal_hash(signal):
 
 
 def save_signal(signal):
+    """Save a signal if it is not already present."""
 
     conn = get_connection()
-    cursor = conn.cursor()
-
-    signal_hash = generate_signal_hash(signal)
 
     try:
+        cursor = conn.cursor()
+        signal_hash = generate_signal_hash(signal)
 
         cursor.execute("""
-            INSERT INTO signals
-            (title, content, source, category,
-             relevance_score, signal_hash)
+            INSERT INTO signals (
+                title,
+                content,
+                source,
+                category,
+                relevance_score,
+                signal_hash
+            )
             VALUES (?, ?, ?, ?, ?, ?)
         """, (
             signal.get("title", ""),
@@ -79,15 +97,23 @@ def save_signal(signal):
 
 
 def get_all_signals():
+    """Retrieve all signals."""
 
     conn = get_connection()
-    cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT * FROM signals ORDER BY id DESC
-    """)
+    try:
+        cursor = conn.cursor()
 
-    rows = cursor.fetchall()
-    conn.close()
+        cursor.execute("""
+            SELECT * FROM signals
+            ORDER BY id DESC
+        """)
 
-    return rows
+        return cursor.fetchall()
+
+    finally:
+        conn.close()
+
+
+# Initialize the database
+initialize_database()
