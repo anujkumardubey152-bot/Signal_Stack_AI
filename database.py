@@ -1,94 +1,93 @@
 
 import sqlite3
-import os
+import hashlib
 
-PROJECT_PATH = "/content/drive/MyDrive/Signal_Stack_AI"
-
-import tempfile
-
+# Streamlit Cloud writable temporary database location
 DB_PATH = "/tmp/signal_stack_ai.db"
+
 
 def get_connection():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
+
 def initialize_database():
-
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS companies (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        website TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    """)
-
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS intelligence (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        company_id INTEGER,
-        category TEXT,
-        title TEXT,
-        description TEXT,
-        source_url TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    """)
-
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS interview_answers (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        company_id INTEGER,
-        question TEXT,
-        answer TEXT,
-        is_skipped INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
+        CREATE TABLE IF NOT EXISTS signals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT,
+            content TEXT,
+            source TEXT,
+            category TEXT,
+            relevance_score INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            signal_hash TEXT UNIQUE
+        )
     """)
 
     conn.commit()
     conn.close()
 
-def save_answer(company_id, question, answer, is_skipped=False):
 
+def generate_signal_hash(signal):
+    text = (
+        str(signal.get("title", "")) + " " +
+        str(signal.get("content", ""))
+    ).lower().strip()
+
+    return hashlib.sha256(
+        text.encode("utf-8")
+    ).hexdigest()
+
+
+def save_signal(signal):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    signal_hash = generate_signal_hash(signal)
+
+    try:
+        cursor.execute("""
+            INSERT INTO signals
+            (title, content, source, category,
+             relevance_score, signal_hash)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            signal.get("title", ""),
+            signal.get("content", ""),
+            signal.get("source", ""),
+            signal.get("category", ""),
+            signal.get("relevance_score", 0),
+            signal_hash
+        ))
+
+        conn.commit()
+        return True
+
+    except sqlite3.IntegrityError:
+        return False
+
+    finally:
+        conn.close()
+
+
+def get_all_signals():
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
-    INSERT INTO interview_answers
-    (company_id, question, answer, is_skipped)
-    VALUES (?, ?, ?, ?)
-    """, (
-        company_id,
-        question,
-        answer,
-        int(is_skipped)
-    ))
+        SELECT * FROM signals ORDER BY id DESC
+    """)
 
-    conn.commit()
+    rows = cursor.fetchall()
     conn.close()
 
-def get_answers(company_id):
+    return rows
 
-    conn = get_connection()
 
-    cursor = conn.cursor()
-
-    cursor.execute("""
-    SELECT question, answer, is_skipped
-    FROM interview_answers
-    WHERE company_id = ?
-    ORDER BY id
-    """, (company_id,))
-
-    results = cursor.fetchall()
-
-    conn.close()
-
-    return results
-
+# Initialize database
 initialize_database()
