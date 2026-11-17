@@ -4,10 +4,13 @@ import os
 
 PROJECT_PATH = "/content/drive/MyDrive/Signal_Stack_AI"
 
-DB_PATH = os.path.join(
-    PROJECT_PATH, "data", "signal_stack.db"
-)
+import tempfile
 
+DB_PATH = os.path.join(
+    tempfile.gettempdir(),
+    "signal_stack_ai",
+    "signals.db"
+)
 def get_connection():
     return sqlite3.connect(DB_PATH)
 
